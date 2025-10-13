@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Connection, PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js'
+import { Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram } from '@solana/web3.js'
+import { Buffer } from 'buffer'
 
 // Phantom window type
 type PhantomProvider = {
@@ -15,7 +16,7 @@ declare global { interface Window { solana?: PhantomProvider } }
 
 const PROGRAM_ID = new PublicKey('9RctzLPHP58wrnoGCbb5FpFKbmQb6f53i5PsebQZSaQL')
 // We use mainnet endpoint by default; users can change via env if needed
-const RPC_ENDPOINT = (import.meta as any).env?.VITE_SOLANA_RPC || 'https://api.mainnet-beta.solana.com'
+const RPC_ENDPOINT = (import.meta as any).env?.VITE_SOLANA_RPC || 'https://mainnet.helius-rpc.com/?api-key=939dfe15-ec6d-45b9-a4b2-75e9adb3d1df'
 
 function usePhantom() {
   const [provider, setProvider] = useState<PhantomProvider | null>(null)
@@ -65,7 +66,7 @@ async function buildWriteIx(user: PublicKey, data: Uint8Array): Promise<Transact
     keys: [
       { pubkey: user, isSigner: true, isWritable: true },
       { pubkey: pda, isSigner: false, isWritable: true },
-      // No system program required explicitly; program uses CPI to system
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
     ],
     data: Buffer.from(data),
   })
