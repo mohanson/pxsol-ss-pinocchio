@@ -80,6 +80,7 @@ export function App() {
   const [stored, setStored] = useState<Uint8Array | null>(null)
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string>('')
+  const [pda, setPda] = useState<PublicKey | null>(null)
 
   const load = useCallback(async () => {
     if (!pubkey) return
@@ -93,7 +94,24 @@ export function App() {
     } finally { setLoading(false) }
   }, [connection, pubkey])
 
-  useEffect(() => { if (pubkey) { load() } }, [pubkey, load])
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      if (pubkey) {
+        try {
+          const [addr] = await deriveDataPda(pubkey)
+          if (!cancelled) setPda(addr)
+          await load()
+        } catch (e) {
+          if (!cancelled) setPda(null)
+        }
+      } else {
+        setPda(null)
+      }
+    }
+    void run()
+    return () => { cancelled = true }
+  }, [pubkey, load])
 
   const onSave = useCallback(async () => {
     if (!provider || !pubkey) return
@@ -192,6 +210,18 @@ export function App() {
 
             {status && (
               <p className="status-message">{status}</p>
+            )}
+            {pda && stored && (
+              <div className="links-section" style={{ marginTop: 8 }}>
+                <a
+                  href={`https://solscan.io/account/${pda.toBase58()}#accountData`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="project-link"
+                >
+                  View Data on Solscan
+                </a>
+              </div>
             )}
           </div>
         </>
