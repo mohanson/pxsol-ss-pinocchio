@@ -81,6 +81,9 @@ export function App() {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string>('')
   const [pda, setPda] = useState<PublicKey | null>(null)
+  // Global feed of other users' data
+  const [feed, setFeed] = useState<Array<{ pda: string, data: string, wallet?: string }>>([])
+  const [feedLoading, setFeedLoading] = useState(false)
 
   const load = useCallback(async () => {
     if (!pubkey) return
@@ -135,6 +138,37 @@ export function App() {
   }, [provider, pubkey, inputText, connection, load])
 
   const storedText = useMemo(() => stored ? new TextDecoder().decode(stored) : '', [stored])
+
+  const reloadFeed = useCallback(async () => {
+    setFeedLoading(true)
+    try {
+      const accounts = await connection.getProgramAccounts(PROGRAM_ID, { commitment: 'confirmed' })
+      const top = accounts.slice(0, 20)
+      const entries = await Promise.all(top.map(async (a) => {
+        const u8 = a.account.data as unknown as Uint8Array
+        let txt: string
+        try { txt = new TextDecoder().decode(u8) } catch { txt = Buffer.from(u8).toString('base64') }
+        let wallet: string | undefined
+        try {
+          const sigs = await connection.getSignaturesForAddress(a.pubkey, { limit: 1 })
+          if (sigs.length) {
+            const tx = await connection.getTransaction(sigs[0].signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 } as any)
+            const keys: any = (tx as any)?.transaction?.message?.accountKeys
+            if (Array.isArray(keys) && keys.length) {
+              const k0: any = keys[0]
+              wallet = typeof k0 === 'string' ? k0 : k0?.toBase58?.()
+            }
+          }
+        } catch {}
+        return { pda: a.pubkey.toBase58(), data: txt, wallet }
+      }))
+      setFeed(entries)
+    } finally {
+      setFeedLoading(false)
+    }
+  }, [connection])
+
+  useEffect(() => { void reloadFeed() }, [reloadFeed])
 
   const GithubIcon = () => (
     <svg viewBox="0 0 24 24" fill="currentColor">
@@ -226,6 +260,31 @@ export function App() {
           </div>
         </>
       )}
+
+      <div className="glass-card">
+        <h3 className="section-title">Recent data from others</h3>
+        <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {feedLoading ? (
+            <p className="empty-state">Loading...</p>
+          ) : feed.length ? (
+            feed.map(item => (
+              <div key={item.pda} style={{ display: 'grid', gap: 8 }}>
+                <div className="wallet-section" style={{ justifyContent: 'flex-start' }}>
+                  <div className="wallet-address" title="Likely wallet (fee payer)">{item.wallet || 'Unknown wallet'}</div>
+                  <div className="wallet-address" title="Program Derived Address">{item.pda}</div>
+                  <a href={`https://solscan.io/account/${item.pda}#accountData`} target="_blank" rel="noopener noreferrer" className="project-link">Solscan</a>
+                </div>
+                <div className="data-display">{item.data}</div>
+              </div>
+            ))
+          ) : (
+            <p className="empty-state">No entries found.</p>
+          )}
+        </div>
+        <div className="button-group">
+          <button className="glass-button" onClick={() => void reloadFeed()} disabled={feedLoading}>Reload</button>
+        </div>
+      </div>
     </div>
   )
 }
