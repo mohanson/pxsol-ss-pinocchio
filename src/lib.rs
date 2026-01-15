@@ -13,8 +13,10 @@ pub fn process_instruction(
     let account_data = accounts[1];
 
     let rent_exemption = pinocchio::sysvars::rent::Rent::get()?.minimum_balance(data.len());
-    let bump_seed = &[pinocchio::pubkey::find_program_address(&[&account_user.key()[..]], program_id).1];
-    let signer_seed = pinocchio::seeds!(account_user.key(), bump_seed);
+    let calculated_pda = pinocchio::pubkey::find_program_address(&[&account_user.key()[..]], program_id);
+    assert_eq!(&calculated_pda.0, account_data.key());
+    let bump = &[calculated_pda.1];
+    let signer_seed = pinocchio::seeds!(account_user.key(), bump);
     let signer = pinocchio::instruction::Signer::from(&signer_seed);
 
     // Data account is not initialized. Create an account and write data into it.
