@@ -15,6 +15,8 @@ pub fn process_instruction(
     let rent_exemption = pinocchio::sysvars::rent::Rent::get()?.minimum_balance(data.len());
     let calculated_pda = pinocchio::pubkey::find_program_address(&[&account_user.key()[..]], program_id);
     assert_eq!(&calculated_pda.0, account_data.key());
+    assert!(account_user.is_signer());
+
     let bump = &[calculated_pda.1];
     let signer_seed = pinocchio::seeds!(account_user.key(), bump);
     let signer = pinocchio::instruction::Signer::from(&signer_seed);
